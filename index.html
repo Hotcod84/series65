@@ -1,1 +1,83 @@
-<html><head><meta http-equiv="refresh" content="0;url=study.html"><title>Series 65</title></head><body><a href="study.html">Study Center</a></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Series 65 Study</title>
+<style>
+:root{--navy:#1B2A4A;--gold:#C9A84C;--ink:#1a1a2e;--muted:#4b5563;--bg:#f0f2f5}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
+header{background:var(--navy);color:#fff;border-bottom:4px solid var(--gold);padding:22px max(5vw,18px) 20px}
+header h1{margin:0;font-size:26px;line-height:1.15}
+header p{margin:4px 0 0;opacity:.85;font-size:15px}
+main{max-width:860px;margin:0 auto;padding:22px max(4vw,16px) 60px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,250px),1fr));gap:14px}
+a.page{display:block;background:#fff;border-radius:12px;padding:18px 18px 16px;text-decoration:none;color:var(--ink);
+ border:2px solid transparent;box-shadow:0 2px 10px rgba(27,42,74,.08);min-height:44px}
+a.page:hover,a.page:focus-visible{border-color:var(--navy);outline:none}
+a.page b{display:block;font-size:19px;color:var(--navy);margin-bottom:4px}
+a.page span{font-size:15px;color:var(--muted)}
+.bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:22px 0 0;font-size:15px;color:var(--muted)}
+.bar button{font:600 15px/1 inherit;padding:11px 15px;border-radius:9px;border:2px solid #d1d5db;background:#fff;color:var(--navy);cursor:pointer;min-height:44px}
+.bar button:hover{border-color:var(--navy)}
+#sync{flex:1 1 220px}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#4ade80;margin-right:7px;vertical-align:1px}
+.panel{background:#fff;border-radius:12px;padding:18px;margin-top:16px;box-shadow:0 2px 10px rgba(27,42,74,.08)}
+.panel input{width:100%;font:17px inherit;padding:12px;border:2px solid #d1d5db;border-radius:9px;margin:8px 0}
+.panel button{font:600 16px inherit;padding:12px 16px;border:0;border-radius:9px;background:var(--navy);color:#fff;cursor:pointer}
+.note{font-size:14px;color:var(--muted);margin-top:18px;line-height:1.55}
+</style>
+<script src="lib/supabase.js"></script>
+<script src="lib/s65-config.js"></script>
+<script src="lib/s65-shell.js"></script>
+</head>
+<body>
+<script>
+(function () {
+  var SB = window.S65_client();
+  var PAGES = [
+    ["study.html", "Study Center", "Unit packs sorted into Kaplan Units 1–24, plus the practice exams by domain"],
+    ["topic-trainer.html", "Topic Trainer", "Every question in the bank, by Kaplan unit and topic"],
+    ["practice-exam.html", "Practice Exam", "Full-length mixed practice exams"],
+    ["fill-in.html", "Fill-in Quiz", "Fill-in rules, equations, true/false and quick multiple choice"],
+    ["tracker.html", "Progress Tracker", "Tick off each Kaplan unit as you read it and drill it"]
+  ];
+  function hub(session) {
+    document.body.innerHTML =
+      "<header><h1>Series 65 study</h1><p>Signed in as " + session.user.email + " · progress syncs across all your devices</p></header><main>" +
+      "<div class='grid'>" + PAGES.map(function (p) { return "<a class='page' href='" + p[0] + "'><b>" + p[1] + "</b><span>" + p[2] + "</span></a>"; }).join("") + "</div>" +
+      "<div class='bar'><span id='sync'>Checking sync…</span><button id='cp' type='button'>Change password</button><button id='so' type='button'>Sign out</button></div>" +
+      "<div id='pw'></div>" +
+      "<p class='note'>Bookmark this page (or any page above) on your laptop, tablet and phone. Sign in once on each device; after that every answer you give is saved to your account and shows up on the others when you open or refresh a page.</p></main>";
+    document.getElementById("so").onclick = function () { SB.auth.signOut().then(function () { location.reload(); }); };
+    document.getElementById("cp").onclick = function () { pwForm("Choose a new password"); };
+    SB.from("sync_doc").select("updated_at").eq("doc", "progress").maybeSingle().then(function (r) {
+      var el = document.getElementById("sync");
+      if (r.error) { el.textContent = "Sync unavailable right now — answers are kept on this device until it reconnects."; return; }
+      el.innerHTML = "<span class='dot'></span>" + (r.data ? "Progress last saved " + new Date(r.data.updated_at).toLocaleString() : "Connected — no answers saved yet");
+    });
+  }
+  function pwForm(title) {
+    var box = document.getElementById("pw");
+    box.innerHTML = "<div class='panel'><b>" + title + "</b><input id='np' type='password' autocomplete='new-password' placeholder='At least 8 characters'><button id='sv' type='button'>Save password</button> <span id='pm'></span></div>";
+    document.getElementById("sv").onclick = function () {
+      var v = document.getElementById("np").value, m = document.getElementById("pm");
+      if (v.length < 8) { m.textContent = "Use at least 8 characters."; return; }
+      SB.auth.updateUser({ password: v }).then(function (r) { m.textContent = r.error ? r.error.message : "Saved."; });
+    };
+  }
+  function start() {
+    SB.auth.getSession().then(function (r) {
+      var s = r && r.data && r.data.session;
+      if (!s) { window.S65LoginScreen(start); return; }
+      hub(s);
+      if (location.hash.indexOf("reset") >= 0 || /type=recovery/.test(location.hash)) pwForm("Set a new password");
+    });
+  }
+  SB.auth.onAuthStateChange(function (ev) { if (ev === "PASSWORD_RECOVERY") setTimeout(function () { pwForm("Set a new password"); }, 300); });
+  start();
+})();
+</script>
+</body>
+</html>
